@@ -20,15 +20,16 @@ const OWNER_ID = 1388479642;
 const CHANNEL_USERNAME = "@seducteasech";
 
 // GROUP WAJIB JOIN (grup privat pakai Chat ID)
-const GROUP_ID = -1004337666009
+const GROUP_ID = -1004337666009;
 
 // LINK INVITE GRUP
 const GROUP_INVITE_LINK = "https://t.me/+YbuW46Lf8zg3ZGFl";
 
 // ==========================
-// STATE — menyimpan video sementara
+// STATE — menyimpan media sementara
+// pendingUploads[chatId] = { items: [{file_id, type, message_id}], timer }
 // ==========================
-const pendingVideos = {};
+const pendingUploads = {};
 
 // ==========================
 // GENERATE RANDOM CODE
@@ -52,6 +53,17 @@ function generateCode() {
       file_id TEXT,
       judul TEXT,
       created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    );
+  `);
+
+  // TABEL BARU: isi media per link (foto / video, bisa banyak)
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS media_items (
+      id SERIAL PRIMARY KEY,
+      video_id INTEGER REFERENCES videos(id) ON DELETE CASCADE,
+      file_id TEXT NOT NULL,
+      type TEXT NOT NULL,
+      urutan INTEGER DEFAULT 0
     );
   `);
 
@@ -104,6 +116,65 @@ async function checkMembership(userId) {
   } catch {
     return false;
   }
+
+}
+
+// ==========================
+// KIRIM SEMUA MEDIA UNTUK 1 KODE
+// return true kalau ketemu, false kalau tidak
+// ==========================
+async function sendContent(chatId, kode) {
+
+  const post = await pool.query(
+    "SELECT id, file_id FROM videos WHERE kode=$1",
+    [kode]
+  );
+
+  if (post.rows.length === 0) return false;
+
+  const row = post.rows[0];
+
+  const mediaRes = await pool.query(
+    "SELECT file_id, type FROM media_items WHERE video_id=$1 ORDER BY urutan ASC, id ASC",
+    [row.id]
+  );
+
+  let items = mediaRes.rows;
+
+  // Kompatibel dengan link lama (video tunggal di kolom videos.file_id)
+  if (items.length === 0 && row.file_id) {
+    items = [{ file_id: row.file_id, type: "video" }];
+  }
+
+  if (items.length === 0) return false;
+
+  // Telegram: sendMediaGroup maksimal 10 item per kirim, minimal 2
+  for (let i = 0; i < items.length; i += 10) {
+
+    const chunk = items.slice(i, i + 10);
+
+    if (chunk.length === 1) {
+
+      const m = chunk[0];
+
+      if (m.type === "photo")
+        await bot.sendPhoto(chatId, m.file_id, { protect_content: true });
+      else
+        await bot.sendVideo(chatId, m.file_id, { protect_content: true });
+
+    } else {
+
+      await bot.sendMediaGroup(
+        chatId,
+        chunk.map(m => ({ type: m.type, media: m.file_id })),
+        { protect_content: true }
+      );
+
+    }
+
+  }
+
+  return true;
 
 }
 
@@ -188,17 +259,23 @@ bot.onText(/\/listvideo/, async msg => {
   if (!admin)
     return bot.sendMessage(msg.chat.id, "❌ Hanya admin.");
 
-  const res = await pool.query(
-    "SELECT id, judul, kode FROM videos ORDER BY created_at DESC"
-  );
+  const res = await pool.query(`
+    SELECT v.id, v.judul, v.kode,
+           COUNT(m.id) AS jumlah
+    FROM videos v
+    LEFT JOIN media_items m ON m.video_id = v.id
+    GROUP BY v.id
+    ORDER BY v.created_at DESC
+  `);
 
   if (res.rows.length === 0)
-    return bot.sendMessage(msg.chat.id, "📭 Belum ada video.");
+    return bot.sendMessage(msg.chat.id, "📭 Belum ada konten.");
 
-  let text = "📋 Daftar Video\n\n";
+  let text = "📋 Daftar Konten\n\n";
 
   res.rows.forEach((r, i) => {
-    text += `${i + 1}. ${r.judul} (${r.id})\n`;
+    const jumlah = parseInt(r.jumlah) || 1; // link lama = 1 video
+    text += `${i + 1}. ${r.judul} (${r.id}) — ${jumlah} media\n`;
     text += `🔗 https://t.me/${botUsername}?start=${r.kode}\n\n`;
   });
 
@@ -224,13 +301,14 @@ bot.onText(/\/hapus_(\d+)/, async (msg, match) => {
   );
 
   if (res.rows.length === 0)
-    return bot.sendMessage(msg.chat.id, "❌ Video tidak ditemukan.");
+    return bot.sendMessage(msg.chat.id, "❌ Konten tidak ditemukan.");
 
   const judul = res.rows[0].judul;
 
+  // media_items ikut terhapus otomatis (ON DELETE CASCADE)
   await pool.query("DELETE FROM videos WHERE id=$1", [id]);
 
-  bot.sendMessage(msg.chat.id, `✅ Video "${judul}" berhasil dihapus.`);
+  bot.sendMessage(msg.chat.id, `✅ Konten "${judul}" berhasil dihapus.`);
 
 });
 
@@ -242,30 +320,75 @@ bot.onText(/\/batal/, async msg => {
   const admin = await isAdmin(msg.chat.id);
   if (!admin) return;
 
-  if (!pendingVideos[msg.chat.id])
+  const state = pendingUploads[msg.chat.id];
+
+  if (!state)
     return bot.sendMessage(msg.chat.id, "⚠️ Tidak ada proses upload yang aktif.");
 
-  delete pendingVideos[msg.chat.id];
+  clearTimeout(state.timer);
+  delete pendingUploads[msg.chat.id];
 
   bot.sendMessage(msg.chat.id, "✅ Upload dibatalkan.");
 
 });
 
 // ==========================
-// ADMIN UPLOAD VIDEO
+// ADMIN UPLOAD MEDIA (FOTO / VIDEO, BOLEH BANYAK / ALBUM)
 // ==========================
 bot.on("message", async msg => {
 
-  if (!msg.video) return;
+  const isPhoto = Array.isArray(msg.photo) && msg.photo.length > 0;
+  const isVideo = !!msg.video;
 
-  const admin = await isAdmin(msg.chat.id);
+  if (!isPhoto && !isVideo) return;
+
+  const chatId = msg.chat.id;
+
+  const admin = await isAdmin(chatId);
   if (!admin) return;
 
-  pendingVideos[msg.chat.id] = msg.video.file_id;
+  if (!pendingUploads[chatId])
+    pendingUploads[chatId] = { items: [], timer: null };
 
-  bot.sendMessage(msg.chat.id,
-    "📝 Berikan judul untuk video ini:\n\n(ketik /batal untuk membatalkan)"
-  );
+  const state = pendingUploads[chatId];
+
+  if (isPhoto) {
+    // msg.photo berisi beberapa ukuran, ambil yang terbesar (terakhir)
+    state.items.push({
+      file_id: msg.photo[msg.photo.length - 1].file_id,
+      type: "photo",
+      message_id: msg.message_id
+    });
+  } else {
+    state.items.push({
+      file_id: msg.video.file_id,
+      type: "video",
+      message_id: msg.message_id
+    });
+  }
+
+  // Tunggu sebentar supaya semua media dari album sudah masuk,
+  // baru kirim 1 pesan konfirmasi
+  clearTimeout(state.timer);
+
+  state.timer = setTimeout(() => {
+
+    if (!pendingUploads[chatId]) return;
+
+    const total = state.items.length;
+    const foto = state.items.filter(i => i.type === "photo").length;
+    const video = total - foto;
+
+    bot.sendMessage(chatId,
+`📥 ${total} media diterima (${foto} foto, ${video} video)
+
+➕ Kirim media lagi kalau mau ditambah
+📝 Atau ketik judul untuk menyelesaikan & membuat link
+
+(ketik /batal untuk membatalkan)`
+    );
+
+  }, 1500);
 
 });
 
@@ -274,34 +397,50 @@ bot.on("message", async msg => {
 // ==========================
 bot.on("message", async msg => {
 
-  if (!pendingVideos[msg.chat.id]) return;
+  const chatId = msg.chat.id;
+
+  const state = pendingUploads[chatId];
+
+  if (!state || state.items.length === 0) return;
   if (!msg.text) return;
   if (msg.text.startsWith("/")) return;
 
-  const admin = await isAdmin(msg.chat.id);
+  const admin = await isAdmin(chatId);
   if (!admin) return;
 
-  const file_id = pendingVideos[msg.chat.id];
   const judul = msg.text.trim();
   const kode = generateCode();
 
-  delete pendingVideos[msg.chat.id];
+  // urutkan sesuai urutan kirim
+  const items = [...state.items].sort((a, b) => a.message_id - b.message_id);
 
-  await pool.query(
-    "INSERT INTO videos (kode, file_id, judul) VALUES ($1, $2, $3)",
-    [kode, file_id, judul]
+  clearTimeout(state.timer);
+  delete pendingUploads[chatId];
+
+  const ins = await pool.query(
+    "INSERT INTO videos (kode, judul) VALUES ($1, $2) RETURNING id",
+    [kode, judul]
   );
 
-const link = `https://t.me/${botUsername}?start=${kode}`;
+  const videoId = ins.rows[0].id;
 
-const template = `${judul}
+  for (let i = 0; i < items.length; i++) {
+    await pool.query(
+      "INSERT INTO media_items (video_id, file_id, type, urutan) VALUES ($1, $2, $3, $4)",
+      [videoId, items[i].file_id, items[i].type, i]
+    );
+  }
+
+  const link = `https://t.me/${botUsername}?start=${kode}`;
+
+  const template = `${judul}
 
 ${link}
 
 BANTU SUPPORT MIMIN DENGAN KLIK LINK INI SEKALI AJA BIAR SEMANGAT UPLOADNYA HEHE ❤️
 https://shorturl.at/X8mDF`;
 
-bot.sendMessage(msg.chat.id, template);
+  bot.sendMessage(chatId, template);
 
 });
 
@@ -346,18 +485,13 @@ bot.onText(/\/start (.+)/, async (msg, match) => {
 
   }
 
-  const res = await pool.query(
-    "SELECT file_id FROM videos WHERE kode=$1",
-    [kode]
-  );
-
-  if (res.rows.length === 0)
-    return bot.sendMessage(chatId, "❌ Video tidak ditemukan");
-
-  // protect_content: true — video tidak bisa di-forward & disimpan
-  bot.sendVideo(chatId, res.rows[0].file_id, {
-    protect_content: true
-  });
+  try {
+    const ok = await sendContent(chatId, kode);
+    if (!ok) bot.sendMessage(chatId, "❌ Konten tidak ditemukan");
+  } catch (err) {
+    console.error("sendContent error:", err.message);
+    bot.sendMessage(chatId, "⚠️ Gagal mengirim konten, coba lagi nanti.");
+  }
 
 });
 
@@ -384,24 +518,24 @@ bot.on("callback_query", async query => {
 
   }
 
-  const res = await pool.query(
-    "SELECT file_id FROM videos WHERE kode=$1",
-    [kode]
-  );
+  try {
 
-  if (res.rows.length === 0) {
+    const ok = await sendContent(chatId, kode);
 
+    if (!ok) {
+      return bot.answerCallbackQuery(query.id, {
+        text: "❌ Konten tidak ditemukan",
+        show_alert: true
+      });
+    }
+
+  } catch (err) {
+    console.error("sendContent error:", err.message);
     return bot.answerCallbackQuery(query.id, {
-      text: "❌ Video tidak ditemukan",
+      text: "⚠️ Gagal mengirim konten",
       show_alert: true
     });
-
   }
-
-  // protect_content: true — video tidak bisa di-forward & disimpan
-  await bot.sendVideo(chatId, res.rows[0].file_id, {
-    protect_content: true
-  });
 
   bot.answerCallbackQuery(query.id);
 
@@ -418,11 +552,11 @@ bot.onText(/\/start$/, async msg => {
     return bot.sendMessage(msg.chat.id,
 `📤 Panduan Admin
 
-Upload video → ketik judul → link langsung muncul
+Kirim foto/video (boleh banyak sekaligus) → ketik judul → link langsung muncul
 
 📋 Command:
-/listvideo — lihat semua video
-/hapus_(id) — hapus video, contoh: /hapus_1
+/listvideo — lihat semua konten
+/hapus_(id) — hapus konten, contoh: /hapus_1
 /batal — batalkan upload
 /listadmin — daftar admin
 /addadmin (id) — tambah admin
@@ -435,7 +569,7 @@ Upload video → ketik judul → link langsung muncul
 
   if (joined) {
     return bot.sendMessage(msg.chat.id,
-      "✅ Kamu sudah join! Klik link video dari channel kami untuk menonton konten.",
+      "✅ Kamu sudah join! Klik link dari channel kami untuk menonton konten.",
       {
         reply_markup: {
           inline_keyboard: [
