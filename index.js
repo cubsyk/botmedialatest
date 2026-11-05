@@ -20,10 +20,10 @@ const OWNER_ID = 1388479642;
 const CHANNEL_USERNAME = "@seducteasech";
 
 // GROUP WAJIB JOIN (grup privat pakai Chat ID)
-const GROUP_ID = -1003951575120
+const GROUP_ID = -1004337666009
 
 // LINK INVITE GRUP
-const GROUP_INVITE_LINK = "https://t.me/+y8RB3kK25UU1ZWI1";
+const GROUP_INVITE_LINK = "https://t.me/+YbuW46Lf8zg3ZGFl";
 
 // ==========================
 // STATE — menyimpan video sementara
