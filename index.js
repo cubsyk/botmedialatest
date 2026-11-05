@@ -303,6 +303,8 @@ https://shorturl.at/X8mDF`;
 
 bot.sendMessage(msg.chat.id, template);
 
+});
+
 // ==========================
 // START WITH LINK
 // ==========================
