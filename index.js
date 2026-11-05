@@ -292,18 +292,16 @@ bot.on("message", async msg => {
     [kode, file_id, judul]
   );
 
-
 const link = `https://t.me/${botUsername}?start=${kode}`;
 
 const template = `${judul}
 
 ${link}
 
-BANTU SUPPORT MIMIN YAA CUKUP DENGAN KLIK LINK INI SEKALI AJA BIAR SEMANGAT UPLOADNYA HEHE ❤️`;
+BANTU SUPPORT MIMIN DENGAN KLIK LINK INI SEKALI AJA BIAR SEMANGAT UPLOADNYA HEHE ❤️
+(disinilinksupport)`;
 
 bot.sendMessage(msg.chat.id, template);
-
-});
 
 // ==========================
 // START WITH LINK
