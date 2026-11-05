@@ -292,15 +292,16 @@ bot.on("message", async msg => {
     [kode, file_id, judul]
   );
 
-  const link = `https://t.me/${botUsername}?start=${kode}`;
 
-  bot.sendMessage(msg.chat.id,
-`✅ Video berhasil disimpan
+const link = `https://t.me/${botUsername}?start=${kode}`;
 
-Judul : ${judul}
-🔗 Link: \`${link}\``,
-    { parse_mode: "Markdown" }
-  );
+const template = `${judul}
+
+${link}
+
+BANTU SUPPORT MIMIN YAA CUKUP DENGAN KLIK LINK INI SEKALI AJA BIAR SEMANGAT UPLOADNYA HEHE ❤️`;
+
+bot.sendMessage(msg.chat.id, template);
 
 });
 
