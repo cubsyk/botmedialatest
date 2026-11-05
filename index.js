@@ -299,7 +299,7 @@ const template = `${judul}
 ${link}
 
 BANTU SUPPORT MIMIN DENGAN KLIK LINK INI SEKALI AJA BIAR SEMANGAT UPLOADNYA HEHE ❤️
-(disinilinksupport)`;
+https://shorturl.at/X8mDF`;
 
 bot.sendMessage(msg.chat.id, template);
 
