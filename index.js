@@ -438,7 +438,7 @@ bot.on("message", async msg => {
 ${link}
 
 MAU LANGSUNG NONTON TANPA RIBET? 10.000+ KONTEN ONLY 50K UPDATE 24/7
-pc @mieayampangsit;
+pc @mieayampangsit`;
 
   bot.sendMessage(chatId, template);
 
