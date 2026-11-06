@@ -437,8 +437,8 @@ bot.on("message", async msg => {
 
 ${link}
 
-BANTU SUPPORT MIMIN DENGAN KLIK LINK INI SEKALI AJA BIAR SEMANGAT UPLOADNYA HEHE ❤️
-https://shorturl.at/X8mDF`;
+MAU LANGSUNG NONTON TANPA RIBET? 10.000+ KONTEN ONLY 50K UPDATE 24/7
+pc @mieayampangsit;
 
   bot.sendMessage(chatId, template);
 
