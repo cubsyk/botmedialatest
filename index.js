@@ -29,7 +29,7 @@ const GROUP_INVITE_LINK = "https://t.me/+YbuW46Lf8zg3ZGFl";
 const SUPPORT_LINK_URL = "https://shorturl.at/sL0z6";
 
 // Caption yang otomatis muncul di konten
-const CONTENT_CAPTION = `Sudah muncul kontennya ? sekarang klik link dibawah sekali buat support mimin biar semangat.❤️\n${SUPPORT_LINK_URL}`;
+const CONTENT_CAPTION = `Sudah muncul kontennya ? sekarang klik link dibawah sekali buat support mimin biar semangat.\n${SUPPORT_LINK_URL}`;
 
 // ==========================
 // STATE — menyimpan media sementara
