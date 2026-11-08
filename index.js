@@ -437,7 +437,8 @@ bot.on("message", async msg => {
 
 ${link}
 
-MAU LANGSUNG NONTON 10.000+ KONTEN UPDATE 24/7 ? HANYA 50K
+GRUP VlP 10.000+ KONTEN UPDATE 24/7
+HANYA 50K
 pc @mieayampangsit18
 testi @testivipseductease`;
 
