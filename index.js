@@ -437,7 +437,7 @@ bot.on("message", async msg => {
 
 ${link}
 
-MAU LANGSUNG NONTON TANPA RIBET? 10.000+ KONTEN ONLY 50K UPDATE 24/7
+MAU LANGSUNG NONTON 10.000+ KONTEN UPDATE 24/7 ? HANYA 50K
 pc @mieayampangsit18
 testi @testivipseductease`;
 
