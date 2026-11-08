@@ -25,12 +25,6 @@ const GROUP_ID = -1004337666009;
 // LINK INVITE GRUP
 const GROUP_INVITE_LINK = "https://t.me/+YbuW46Lf8zg3ZGFl";
 
-// LINK SUPPORT (isi dengan link tujuanmu, harus https)
-const SUPPORT_LINK_URL = "https://shorturl.at/sL0z6";
-
-// Caption yang otomatis muncul di konten
-const CONTENT_CAPTION = `Sudah muncul kontennya ? sekarang klik link dibawah sekali buat support mimin biar semangat.\n${SUPPORT_LINK_URL}`;
-
 // ==========================
 // STATE — menyimpan media sementara
 // pendingUploads[chatId] = { items: [{file_id, type, message_id}], timer }
@@ -154,39 +148,25 @@ async function sendContent(chatId, kode) {
 
   if (items.length === 0) return false;
 
-  // Caption dipasang di media pertama saja (kalau lebih dari 10 media, hanya di kiriman pertama)
-  const capOpts = { caption: CONTENT_CAPTION, parse_mode: "HTML" };
-
   // Telegram: sendMediaGroup maksimal 10 item per kirim, minimal 2
   for (let i = 0; i < items.length; i += 10) {
 
     const chunk = items.slice(i, i + 10);
-    const withCaption = i === 0;
 
     if (chunk.length === 1) {
 
       const m = chunk[0];
-      const opts = withCaption
-        ? { protect_content: true, ...capOpts }
-        : { protect_content: true };
 
       if (m.type === "photo")
-        await bot.sendPhoto(chatId, m.file_id, opts);
+        await bot.sendPhoto(chatId, m.file_id, { protect_content: true });
       else
-        await bot.sendVideo(chatId, m.file_id, opts);
+        await bot.sendVideo(chatId, m.file_id, { protect_content: true });
 
     } else {
 
       await bot.sendMediaGroup(
         chatId,
-        chunk.map((m, idx) => {
-          const item = { type: m.type, media: m.file_id };
-          if (withCaption && idx === 0) {
-            item.caption = CONTENT_CAPTION;
-            item.parse_mode = "HTML";
-          }
-          return item;
-        }),
+        chunk.map(m => ({ type: m.type, media: m.file_id })),
         { protect_content: true }
       );
 
