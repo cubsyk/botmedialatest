@@ -457,8 +457,11 @@ bot.on("message", async msg => {
 
 ${link}
 
-GRUP VlP 10.000+ KONTEN UPDATE 24/7
-HANYA 50K
+SELENGKAPNYA DI GRUP VlP
+10.000+ KONTEN UPDATE 24/7
+
+💰𝗢𝗡𝗟𝗬 𝟱𝟬𝗸💰
+
 pc @mieayampangsit18
 testi @testivipseductease`;
 
